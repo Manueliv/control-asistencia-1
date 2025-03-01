@@ -1,0 +1,653 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" type="text/css" href="style.css">
+    <title>Control de Asistencia - Curso de Seguridad Informática</title>
+    
+</head>
+<body>
+    <div id="notification" class="notification"></div>
+    
+    <div class="container">
+        <h1>Control de Asistencia - Curso de Seguridad Informática</h1>
+        
+        <div class="control-panel">
+            <input type="text" id="newParticipant" placeholder="Nombre del participante">
+            <button id="addParticipant">Agregar Participante</button>
+            <button id="removeSelected" class="danger">Eliminar Seleccionados</button>
+        </div>
+
+        <div class="data-actions">
+            <button id="saveData" class="success">Guardar Datos (LocalStorage)</button>
+            <button id="loadData" class="warning">Cargar Datos Guardados</button>
+            <button id="exportJSON">Exportar (JSON)</button>
+            <button id="exportCSV">Exportar (CSV)</button>
+            <input type="file" id="fileInput" accept=".json,.csv">
+            <label for="fileInput" class="import-label">Importar Datos</label>
+        </div>
+
+        <div class="table-container">
+            <table id="attendanceTable">
+                <thead>
+                    <tr>
+                        <th style="width: 30px;"><input type="checkbox" id="selectAll"></th>
+                        <th>Participante</th>
+                        <th>Clase 1</th>
+                        <th>Clase 2</th>
+                        <th>Clase 3</th>
+                        <th>Clase 4</th>
+                        <th>Clase 5</th>
+                        <th>Clase 6</th>
+                        <th>Clase 7</th>
+                        <th>Clase 8</th>
+                        <th>Asistencia</th>
+                    </tr>
+                </thead>
+                <tbody id="participantsList">
+                    <!-- Datos de participantes generados dinámicamente -->
+                </tbody>
+            </table>
+        </div>
+
+        <div class="stats">
+            <div class="stats-box high" id="highAttendance">
+                <h3>Alta Asistencia</h3>
+                <p id="highAttendanceCount">0 participantes</p>
+            </div>
+            <div class="stats-box medium" id="mediumAttendance">
+                <h3>Media Asistencia</h3>
+                <p id="mediumAttendanceCount">0 participantes</p>
+            </div>
+            <div class="stats-box low" id="lowAttendance">
+                <h3>Baja Asistencia</h3>
+                <p id="lowAttendanceCount">0 participantes</p>
+            </div>
+            <div class="stats-box" style="background-color: #3498db">
+                <h3>Asistencia General</h3>
+                <p id="generalAttendance">0%</p>
+            </div>
+        </div>
+
+        <div class="chart-container" id="chart">
+            <!-- Gráfica generada dinámicamente -->
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Variables globales
+            const participants = [];
+            let chart = null;
+            const clasesTotal = 8;
+            const STORAGE_KEY = 'attendanceData_seguridad';
+
+            // Elementos DOM
+            const newParticipantInput = document.getElementById('newParticipant');
+            const addParticipantBtn = document.getElementById('addParticipant');
+            const removeSelectedBtn = document.getElementById('removeSelected');
+            const participantsList = document.getElementById('participantsList');
+            const selectAllCheckbox = document.getElementById('selectAll');
+            const saveDataBtn = document.getElementById('saveData');
+            const loadDataBtn = document.getElementById('loadData');
+            const exportJSONBtn = document.getElementById('exportJSON');
+            const exportCSVBtn = document.getElementById('exportCSV');
+            const fileInput = document.getElementById('fileInput');
+            const notification = document.getElementById('notification');
+            
+            // Evento para agregar participante
+            addParticipantBtn.addEventListener('click', addParticipant);
+            newParticipantInput.addEventListener('keydown', function(e) {
+                if (e.key === 'Enter') addParticipant();
+            });
+
+            // Evento para eliminar participantes seleccionados
+            removeSelectedBtn.addEventListener('click', removeSelectedParticipants);
+            
+            // Seleccionar todos
+            selectAllCheckbox.addEventListener('change', function() {
+                const checkboxes = document.querySelectorAll('.participant-checkbox');
+                checkboxes.forEach(checkbox => {
+                    checkbox.checked = selectAllCheckbox.checked;
+                });
+            });
+            
+            // Eventos para LocalStorage
+            saveDataBtn.addEventListener('click', saveData);
+            loadDataBtn.addEventListener('click', loadData);
+            
+            // Eventos para exportar/importar
+            exportJSONBtn.addEventListener('click', () => exportData('json'));
+            exportCSVBtn.addEventListener('click', () => exportData('csv'));
+            fileInput.addEventListener('change', importData);
+
+            // Función para mostrar notificaciones
+            function showNotification(message, isError = false) {
+                notification.textContent = message;
+                notification.className = 'notification' + (isError ? ' error' : '');
+                notification.classList.add('show');
+                
+                setTimeout(() => {
+                    notification.classList.remove('show');
+                }, 3000);
+            }
+
+            // Función para agregar un participante
+            function addParticipant() {
+                const name = newParticipantInput.value.trim();
+                if (name === '') return;
+
+                // Crear objeto de participante
+                const participant = {
+                    id: Date.now(),
+                    name,
+                    attendance: Array(clasesTotal).fill(false)
+                };
+
+                participants.push(participant);
+                renderParticipants();
+                updateStats();
+                updateChart();
+                
+                newParticipantInput.value = '';
+                newParticipantInput.focus();
+            }
+
+            // Función para eliminar participantes seleccionados
+            function removeSelectedParticipants() {
+                const selectedIds = Array.from(document.querySelectorAll('.participant-checkbox:checked'))
+                    .map(checkbox => parseInt(checkbox.dataset.id));
+
+                if (selectedIds.length === 0) return;
+
+                for (let i = participants.length - 1; i >= 0; i--) {
+                    if (selectedIds.includes(participants[i].id)) {
+                        participants.splice(i, 1);
+                    }
+                }
+
+                renderParticipants();
+                updateStats();
+                updateChart();
+                selectAllCheckbox.checked = false;
+            }
+
+            // Función para renderizar la lista de participantes
+            function renderParticipants() {
+                participantsList.innerHTML = '';
+
+                participants.forEach(participant => {
+                    const row = document.createElement('tr');
+                    row.className = 'participant-row';
+
+                    // Celda de checkbox
+                    const checkboxCell = document.createElement('td');
+                    const checkbox = document.createElement('input');
+                    checkbox.type = 'checkbox';
+                    checkbox.className = 'participant-checkbox';
+                    checkbox.dataset.id = participant.id;
+                    checkboxCell.appendChild(checkbox);
+                    row.appendChild(checkboxCell);
+
+                    // Celda de nombre
+                    const nameCell = document.createElement('td');
+                    nameCell.textContent = participant.name;
+                    row.appendChild(nameCell);
+
+                    // Celdas de asistencia (una por clase)
+                    for (let i = 0; i < clasesTotal; i++) {
+                        const cell = document.createElement('td');
+                        const checkboxContainer = document.createElement('div');
+                        checkboxContainer.className = 'checkbox-container';
+                        
+                        const attendanceCheckbox = document.createElement('input');
+                        attendanceCheckbox.type = 'checkbox';
+                        attendanceCheckbox.checked = participant.attendance[i];
+                        attendanceCheckbox.dataset.participantId = participant.id;
+                        attendanceCheckbox.dataset.classIndex = i;
+                        attendanceCheckbox.addEventListener('change', function() {
+                            toggleAttendance(participant.id, i);
+                        });
+                        
+                        checkboxContainer.appendChild(attendanceCheckbox);
+                        cell.appendChild(checkboxContainer);
+                        row.appendChild(cell);
+                    }
+
+                    // Celda de porcentaje de asistencia
+                    const percentageCell = document.createElement('td');
+                    percentageCell.className = 'percentage';
+                    const percentage = calculateAttendancePercentage(participant);
+                    percentageCell.textContent = `${percentage}%`;
+                    
+                    // Colorear según el porcentaje
+                    if (percentage >= 75) {
+                        percentageCell.classList.add('high-percentage');
+                    } else if (percentage >= 50) {
+                        percentageCell.classList.add('medium-percentage');
+                    } else {
+                        percentageCell.classList.add('low-percentage');
+                    }
+                    
+                    row.appendChild(percentageCell);
+                    participantsList.appendChild(row);
+                });
+            }
+
+            // Función para cambiar la asistencia
+            function toggleAttendance(participantId, classIndex) {
+                const participant = participants.find(p => p.id === parseInt(participantId));
+                if (participant) {
+                    participant.attendance[classIndex] = !participant.attendance[classIndex];
+                    updateStats();
+                    updateChart();
+                    
+                    // Actualizar solo la celda de porcentaje sin volver a renderizar toda la tabla
+                    const row = document.querySelector(`.participant-checkbox[data-id="${participantId}"]`).closest('tr');
+                    const percentageCell = row.querySelector('.percentage');
+                    const percentage = calculateAttendancePercentage(participant);
+                    percentageCell.textContent = `${percentage}%`;
+                    
+                    percentageCell.className = 'percentage';
+                    if (percentage >= 75) {
+                        percentageCell.classList.add('high-percentage');
+                    } else if (percentage >= 50) {
+                        percentageCell.classList.add('medium-percentage');
+                    } else {
+                        percentageCell.classList.add('low-percentage');
+                    }
+                }
+            }
+
+            // Calcular porcentaje de asistencia para un participante
+            function calculateAttendancePercentage(participant) {
+                const attended = participant.attendance.filter(attended => attended).length;
+                return Math.round((attended / clasesTotal) * 100);
+            }
+
+            // Actualizar estadísticas generales
+            function updateStats() {
+                let high = 0, medium = 0, low = 0;
+                let totalAttendances = 0;
+                const totalPossibleAttendances = participants.length * clasesTotal;
+
+                participants.forEach(participant => {
+                    const percentage = calculateAttendancePercentage(participant);
+                    totalAttendances += participant.attendance.filter(a => a).length;
+                    
+                    if (percentage >= 75) {
+                        high++;
+                    } else if (percentage >= 50) {
+                        medium++;
+                    } else {
+                        low++;
+                    }
+                });
+
+                document.getElementById('highAttendanceCount').textContent = `${high} participante${high !== 1 ? 's' : ''}`;
+                document.getElementById('mediumAttendanceCount').textContent = `${medium} participante${medium !== 1 ? 's' : ''}`;
+                document.getElementById('lowAttendanceCount').textContent = `${low} participante${low !== 1 ? 's' : ''}`;
+                
+                const generalPercentage = totalPossibleAttendances > 0 
+                    ? Math.round((totalAttendances / totalPossibleAttendances) * 100) 
+                    : 0;
+                
+                document.getElementById('generalAttendance').textContent = `${generalPercentage}%`;
+            }
+
+            // Actualizar gráfica
+            function updateChart() {
+                const chartContainer = document.getElementById('chart');
+                
+                if (participants.length === 0) {
+                    chartContainer.innerHTML = '<p style="text-align: center; color: #777;">Agregue participantes para ver la gráfica de asistencia</p>';
+                    return;
+                }
+                
+                // Datos para el gráfico
+                const labels = participants.map(p => p.name);
+                const data = participants.map(p => calculateAttendancePercentage(p));
+                const colors = data.map(percentage => {
+                    if (percentage >= 75) return '#2ecc71';
+                    if (percentage >= 50) return '#f39c12';
+                    return '#e74c3c';
+                });
+
+                // Destruir gráfico anterior si existe
+                if (chart) {
+                    chart.destroy();
+                }
+
+                // Crear elemento canvas para el gráfico
+                chartContainer.innerHTML = '<canvas id="attendanceChart"></canvas>';
+                const ctx = document.getElementById('attendanceChart').getContext('2d');
+                
+                // Crear nuevo gráfico
+                chart = new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            label: 'Porcentaje de Asistencia',
+                            data: data,
+                            backgroundColor: colors,
+                            borderColor: colors.map(color => color.replace(')', ', 0.8)')),
+                            borderWidth: 1
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                max: 100,
+                                title: {
+                                    display: true,
+                                    text: 'Porcentaje de Asistencia'
+                                }
+                            },
+                            x: {
+                                title: {
+                                    display: true,
+                                    text: 'Participantes'
+                                }
+                            }
+                        },
+                        plugins: {
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        const participant = participants[context.dataIndex];
+                                        const attended = participant.attendance.filter(a => a).length;
+                                        return `Asistió a ${attended} de ${clasesTotal} clases (${context.raw}%)`;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+
+            // FUNCIONES DE ALMACENAMIENTO LOCAL
+            
+            // Guardar datos en localStorage
+            function saveData() {
+                if (participants.length === 0) {
+                    showNotification('No hay datos para guardar', true);
+                    return;
+                }
+                
+                try {
+                    localStorage.setItem(STORAGE_KEY, JSON.stringify(participants));
+                    showNotification('Datos guardados correctamente');
+                } catch (error) {
+                    console.error('Error al guardar datos:', error);
+                    showNotification('Error al guardar datos: ' + error.message, true);
+                }
+            }
+            
+            // Cargar datos desde localStorage
+            function loadData() {
+                try {
+                    const savedData = localStorage.getItem(STORAGE_KEY);
+                    if (!savedData) {
+                        showNotification('No hay datos guardados', true);
+                        return;
+                    }
+                    
+                    const parsedData = JSON.parse(savedData);
+                    if (!Array.isArray(parsedData)) {
+                        showNotification('Formato de datos inválido', true);
+                        return;
+                    }
+                    
+                    participants.length = 0; // Limpiar array actual
+                    parsedData.forEach(p => {
+                        // Asegurarse de que los datos tienen el formato correcto
+                        if (p && p.name && Array.isArray(p.attendance)) {
+                            participants.push({
+                                id: p.id || Date.now() + Math.random() * 1000,
+                                name: p.name,
+                                attendance: p.attendance.slice(0, clasesTotal)
+                            });
+                        }
+                    });
+                    
+                    renderParticipants();
+                    updateStats();
+                    updateChart();
+                    showNotification(`${participants.length} participantes cargados`);
+                } catch (error) {
+                    console.error('Error al cargar datos:', error);
+                    showNotification('Error al cargar datos: ' + error.message, true);
+                }
+            }
+            
+            // FUNCIONES DE EXPORTACIÓN/IMPORTACIÓN
+            
+            // Exportar datos a JSON o CSV
+            function exportData(format) {
+                if (participants.length === 0) {
+                    showNotification('No hay datos para exportar', true);
+                    return;
+                }
+                
+                let dataStr, fileName, mimeType;
+                
+                if (format === 'json') {
+                    dataStr = JSON.stringify(participants, null, 2);
+                    fileName = 'asistencia_seguridad.json';
+                    mimeType = 'application/json';
+                } else {
+                    // Formato CSV
+                    const headers = ['ID', 'Nombre'];
+                    for (let i = 0; i < clasesTotal; i++) {
+                        headers.push(`Clase ${i+1}`);
+                    }
+                    headers.push('Porcentaje');
+                    
+                    const rows = [headers.join(',')];
+                    
+                    participants.forEach(p => {
+                        const row = [
+                            p.id,
+                            `"${p.name}"` // Escapar comillas en nombres
+                        ];
+                        
+                        // Añadir asistencias (0 o 1)
+                        p.attendance.forEach(a => {
+                            row.push(a ? 1 : 0);
+                        });
+                        
+                        // Añadir porcentaje
+                        row.push(calculateAttendancePercentage(p));
+                        
+                        rows.push(row.join(','));
+                    });
+                    
+                    dataStr = rows.join('\n');
+                    fileName = 'asistencia_seguridad.csv';
+                    mimeType = 'text/csv';
+                }
+                
+                // Crear blob y link para descargar
+                const blob = new Blob([dataStr], { type: mimeType });
+                const url = URL.createObjectURL(blob);
+                
+                const link = document.createElement('a');
+                link.setAttribute('href', url);
+                link.setAttribute('download', fileName);
+                link.style.display = 'none';
+                
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                
+                showNotification(`Datos exportados como ${format.toUpperCase()}`);
+            }
+            
+            // Importar datos desde archivo JSON o CSV
+            function importData(event) {
+                const file = event.target.files[0];
+                if (!file) return;
+                
+                const reader = new FileReader();
+                
+                reader.onload = function(e) {
+                    try {
+                        const fileExt = file.name.split('.').pop().toLowerCase();
+                        
+                        if (fileExt === 'json') {
+                            // Importar desde JSON
+                            const parsedData = JSON.parse(e.target.result);
+                            
+                            if (!Array.isArray(parsedData)) {
+                                throw new Error('Formato JSON inválido');
+                            }
+                            
+                            participants.length = 0; // Limpiar array actual
+                            parsedData.forEach(p => {
+                                if (p && p.name && Array.isArray(p.attendance)) {
+                                    participants.push({
+                                        id: p.id || Date.now() + Math.random() * 1000,
+                                        name: p.name,
+                                        attendance: p.attendance.slice(0, clasesTotal)
+                                    });
+                                }
+                            });
+                        } else if (fileExt === 'csv') {
+                            // Importar desde CSV
+                            const lines = e.target.result.split('\n');
+                            
+                            if (lines.length < 2) {
+                                throw new Error('Archivo CSV vacío o inválido');
+                            }
+                            
+                            // Ignorar la primera línea (cabeceras)
+                            participants.length = 0; // Limpiar array actual
+                            
+                            for (let i = 1; i < lines.length; i++) {
+                                const line = lines[i].trim();
+                                if (!line) continue;
+                                
+                                // Procesar línea CSV (con manejo básico de comillas)
+                                const values = [];
+                                let current = '';
+                                let inQuotes = false;
+                                
+                                for (let j = 0; j < line.length; j++) {
+                                    const char = line[j];
+                                    
+                                    if (char === '"') {
+                                        inQuotes = !inQuotes;
+                                    } else if (char === ',' && !inQuotes) {
+                                        values.push(current);
+                                        current = '';
+                                    } else {
+                                        current += char;
+                                    }
+                                }
+                                values.push(current); // Último valor
+                                
+                                // Crear objeto de participante
+                                if (values.length >= clasesTotal + 2) { // ID, nombre y 8 clases mínimo
+                                    const id = parseInt(values[0]) || Date.now() + Math.random() * 1000;
+                                    const name = values[1].replace(/"/g, ''); // Quitar comillas
+                                    
+                                    const attendance = [];
+                                    for (let j = 0; j < clasesTotal; j++) {
+                                        attendance.push(values[j+2] === '1');
+                                    }
+                                    
+                                    participants.push({
+                                        id,
+                                        name,
+                                        attendance
+                                    });
+                                }
+                            }
+                        } else {
+                            throw new Error('Formato de archivo no soportado');
+                        }
+                        
+                        renderParticipants();
+                        updateStats();
+                        updateChart();
+                        showNotification(`${participants.length} participantes importados`);
+                    } catch (error) {
+                        console.error('Error al importar datos:', error);
+                        showNotification('Error al importar: ' + error.message, true);
+                    }
+                    
+                    // Limpiar el input de archivo para permitir importar el mismo archivo de nuevo
+                    fileInput.value = '';
+                };
+                
+                reader.onerror = function() {
+                    showNotification('Error al leer el archivo', true);
+                };
+                
+                if (file.type === 'application/json' || file.name.endsWith('.json')) {
+                    reader.readAsText(file);
+                } else if (file.type === 'text/csv' || file.name.endsWith('.csv')) {
+                    reader.readAsText(file);
+                } else {
+                    showNotification('Formato de archivo no soportado', true);
+                    fileInput.value = '';
+                }
+            }
+
+            // Agregar algunos participantes de ejemplo
+            function addSampleParticipants() {
+                const sampleNames = [
+                    "Ana García", 
+                    "Juan Pérez", 
+                    "María Rodríguez", 
+                    "Carlos López", 
+                    "Laura Martínez"
+                ];
+                
+                sampleNames.forEach(name => {
+                    const participant = {
+                        id: Date.now() + Math.floor(Math.random() * 1000),
+                        name: name,
+                        attendance: Array(clasesTotal).fill(false).map(() => Math.random() > 0.3)
+                    };
+                    participants.push(participant);
+                });
+                
+                renderParticipants();
+                updateStats();
+                updateChart();
+            }
+            
+            // Intentar cargar datos guardados al iniciar
+            const savedData = localStorage.getItem(STORAGE_KEY);
+            if (savedData) {
+                try {
+                    const parsedData = JSON.parse(savedData);
+                    if (Array.isArray(parsedData) && parsedData.length > 0) {
+                        participants.length = 0;
+                        participants.push(...parsedData);
+                        renderParticipants();
+                        updateStats();
+                        updateChart();
+                        showNotification('Datos cargados de almacenamiento local');
+                    } else {
+                        addSampleParticipants();
+                    }
+                } catch (error) {
+                    console.error('Error al cargar datos iniciales:', error);
+                    addSampleParticipants();
+                }
+            } else {
+                // Cargar participantes de ejemplo si no hay datos guardados
+                addSampleParticipants();
+            }
+        });
+    </script>
+</body>
+</html>
