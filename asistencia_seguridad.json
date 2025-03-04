@@ -1,0 +1,100 @@
+[
+  {
+    "id": 1740618044677,
+    "name": "Ana García",
+    "attendance": [
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true
+    ]
+  },
+  {
+    "id": 1740618044977,
+    "name": "Juan Pérez",
+    "attendance": [
+      false,
+      true,
+      true,
+      false,
+      true,
+      true,
+      true,
+      false
+    ]
+  },
+  {
+    "id": 1740618044659,
+    "name": "María Rodríguez",
+    "attendance": [
+      true,
+      true,
+      false,
+      false,
+      false,
+      true,
+      false,
+      true
+    ]
+  },
+  {
+    "id": 1740618045164,
+    "name": "Carlos López",
+    "attendance": [
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      true
+    ]
+  },
+  {
+    "id": 1740618219116,
+    "name": "Manuel Solo",
+    "attendance": [
+      true,
+      true,
+      true,
+      false,
+      true,
+      true,
+      true,
+      false
+    ]
+  },
+  {
+    "id": 1740850516108,
+    "name": "Adriana Serrano",
+    "attendance": [
+      true,
+      true,
+      true,
+      true,
+      true,
+      false,
+      false,
+      false
+    ]
+  },
+  {
+    "id": 1740850555421,
+    "name": "Iris Gomez",
+    "attendance": [
+      true,
+      true,
+      true,
+      true,
+      false,
+      false,
+      false,
+      false
+    ]
+  }
+]

@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Control de Asistencia</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+        }
+        table {
+            width: 90%;
+            margin: 20px auto;
+            border-collapse: collapse;
+        }
+        th, td {
+            border: 1px solid black;
+            padding: 10px;
+            text-align: center;
+        }
+        .present {
+            background-color: lightgreen;
+        }
+        .absent {
+            background-color: lightcoral;
+        }
+    </style>
+</head>
+<body>
+    <h2>Control de Asistencia</h2>
+    <input type="text" id="studentName" placeholder="Nombre del alumno">
+    <button onclick="addStudent()">Agregar Alumno</button>
+    <table>
+        <thead>
+            <tr>
+                <th>Alumno</th>
+                <th>Clase 1</th>
+                <th>Clase 2</th>
+                <th>Clase 3</th>
+                <th>Clase 4</th>
+                <th>Clase 5</th>
+                <th>Clase 6</th>
+                <th>Clase 7</th>
+                <th>Clase 8</th>
+                <th>Porcentaje</th>
+                <th>Acción</th>
+            </tr>
+        </thead>
+        <tbody id="studentList"></tbody>
+    </table>
+    <h3>Total Asistencia General: <span id="totalAttendance">0%</span></h3>
+    <script>
+        function addStudent() {
+            let name = document.getElementById('studentName').value;
+            if (name.trim() === "") return;
+            
+            let table = document.getElementById('studentList');
+            let row = table.insertRow();
+            let cellName = row.insertCell(0);
+            
+            cellName.textContent = name;
+            
+            for (let i = 1; i <= 8; i++) {
+                let cell = row.insertCell(i);
+                cell.innerHTML = '<input type="checkbox" onchange="updateAttendance()">';
+            }
+            
+            let cellPercentage = row.insertCell(9);
+            cellPercentage.textContent = "0%";
+            
+            let cellAction = row.insertCell(10);
+            cellAction.innerHTML = '<button onclick="removeStudent(this)">Eliminar</button>';
+            
+            document.getElementById('studentName').value = "";
+            updateAttendance();
+        }
+        
+        function removeStudent(button) {
+            let row = button.parentNode.parentNode;
+            row.parentNode.removeChild(row);
+            updateAttendance();
+        }
+        
+        function updateAttendance() {
+            let rows = document.querySelectorAll("#studentList tr");
+            let totalAttendance = 0;
+            let totalStudents = rows.length;
+            
+            rows.forEach(row => {
+                let checkboxes = row.querySelectorAll('input[type="checkbox"]');
+                let attended = Array.from(checkboxes).filter(cb => cb.checked).length;
+                let percentage = (attended / 8) * 100;
+                row.cells[9].textContent = percentage.toFixed(0) + "%";
+                row.className = percentage > 50 ? 'present' : 'absent';
+                totalAttendance += percentage;
+            });
+            
+            let generalAttendance = totalStudents > 0 ? (totalAttendance / totalStudents).toFixed(0) + "%" : "0%";
+            document.getElementById('totalAttendance').textContent = generalAttendance;
+        }
+    </script>
+</body>
+</html>
